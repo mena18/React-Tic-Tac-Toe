@@ -12,63 +12,34 @@ import "./index.css";
 //   }
 // }
 
+let winning_pattern = [];
+
 function Square(props) {
   return (
-    <button className="square" onClick={props.onClick}>
+    <button className={props.win + " square"} onClick={props.onClick}>
       {props.value}
     </button>
   );
 }
 
 class Board extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      squares: Array(9).fill(null),
-      xTurn: true,
-      GameOn: true,
-      status: "Next Player X"
-    };
-  }
-
   renderSquare(i) {
+    let win;
+    if (this.props.mark_board && this.props.mark_board.indexOf(i) !== -1) {
+      win = "win";
+    }
     return (
       <Square
-        value={this.state.squares[i]}
-        onClick={() => this.handleClick(i)}
+        value={this.props.squares[i]}
+        onClick={() => this.props.onClick(i)}
+        win={win}
       />
     );
-  }
-
-  handleClick(i) {
-    const squares = this.state.squares.slice();
-    let current_turn = this.state.xTurn;
-
-    if (squares[i] == null && this.state.GameOn) {
-      squares[i] = this.state.xTurn ? "X" : "O";
-      current_turn = !this.state.xTurn;
-      this.setState({ squares: squares, xTurn: current_turn });
-    }
-
-    this.setState({ status: `Next Player ${current_turn ? "X" : "O"}` });
-
-    const winner = calculatewinner(squares);
-
-    if (winner) {
-      this.setState({ status: `The winner is ${winner}`, GameOn: false });
-    }
-
-    const result = squares.filter((square) => square);
-    if (result.length === 9) {
-      this.setState({ status: `Tie`, GameOn: false });
-    }
   }
 
   render() {
     return (
       <div>
-        <div className="status">{this.state.status}</div>
-
         <div className="board-row">
           {this.renderSquare(0)}
           {this.renderSquare(1)}
@@ -90,15 +61,101 @@ class Board extends React.Component {
 }
 
 class Game extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      history: [{ squares: Array(9).fill(null) }],
+      xTurn: true,
+      stepNumber: 0
+    };
+  }
+
+  jumpTo(step) {
+    this.setState({
+      stepNumber: step,
+      xTurn: step % 2 === 0
+    });
+  }
+
+  restart() {
+    this.setState({
+      history: [{ squares: Array(9).fill(null) }],
+      xTurn: true,
+      stepNumber: 0
+    });
+  }
+
+  restart_button() {
+    if (
+      calculatewinner(this.state.history[this.state.history.length - 1].squares)
+    ) {
+      return (
+        <button
+          onClick={() => {
+            this.restart();
+          }}
+        >
+          Play again
+        </button>
+      );
+    }
+  }
+
+  handleClick(i) {
+    const history = this.state.history.slice(0, this.state.stepNumber + 1);
+
+    const current = history[history.length - 1];
+    const squares = current.squares.slice();
+    if (calculatewinner(squares) || squares[i]) {
+      return;
+    }
+    squares[i] = this.state.xTurn ? "X" : "O";
+
+    this.setState({
+      history: history.concat([{ squares: squares }]),
+      xTurn: !this.state.xTurn,
+      stepNumber: history.length
+    });
+  }
+
   render() {
+    const history = this.state.history;
+    const current = history[this.state.stepNumber];
+    const winner = calculatewinner(current.squares);
+    let status;
+    let mark_board;
+    if (winner) {
+      status = "winner : " + winner;
+      console.log(winning_pattern);
+      mark_board = winning_pattern;
+    } else if (current.squares.filter((a) => a).length === 9) {
+      status = "TIE";
+    } else {
+      status = "Next player : " + (this.state.xTurn ? "X" : "O");
+    }
+
+    const moves = history.map((step, move) => {
+      const desc = move ? "Go to move #" + move : "Go to game start";
+      return (
+        <li key={move}>
+          <button onClick={() => this.jumpTo(move)}>{desc}</button>
+        </li>
+      );
+    });
+
     return (
       <div className="game">
         <div className="game-board">
-          <Board />
+          <Board
+            squares={current.squares}
+            onClick={(i) => this.handleClick(i)}
+            mark_board={mark_board}
+          />
         </div>
         <div className="game-info">
-          <div></div>
-          <ol></ol>
+          <div>{status}</div>
+          <div>{this.restart_button()}</div>
+          <ol>{moves}</ol>
         </div>
       </div>
     );
@@ -124,6 +181,7 @@ function calculatewinner(squares) {
   for (let i = 0; i < lines.length; i++) {
     const [a, b, c] = lines[i];
     if (squares[a] === squares[b] && squares[b] === squares[c] && squares[a]) {
+      winning_pattern = lines[i];
       return squares[a];
     }
   }
